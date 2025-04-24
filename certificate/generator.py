@@ -1,12 +1,21 @@
 import os
 import uuid
 import requests
+import sys
 from io import BytesIO
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 from typing import Optional, Tuple, Dict, Any
 
 import config
+
+# 判断是否在调试模式
+DEBUG_FONT = os.environ.get('DEBUG_FONT', '0') == '1'
+
+def log_debug(message):
+    """打印调试信息"""
+    if DEBUG_FONT:
+        print(f"[DEBUG] {message}", file=sys.stderr)
 
 def download_image(url: str) -> Image.Image:
     """从URL下载图片"""
@@ -17,10 +26,15 @@ def download_image(url: str) -> Image.Image:
 
 def get_text_dimensions(text: str, font: ImageFont.FreeTypeFont) -> Tuple[int, int]:
     """计算文本尺寸"""
-    ascent, descent = font.getmetrics()
-    width = font.getmask(text).getbbox()[2]
-    height = ascent + descent
-    return width, height
+    try:
+        ascent, descent = font.getmetrics()
+        width = font.getmask(text).getbbox()[2]
+        height = ascent + descent
+        return width, height
+    except Exception as e:
+        log_debug(f"获取文本尺寸时出错: {e}")
+        # 返回估计值
+        return len(text) * font.size // 2, font.size
 
 def draw_text_aligned(
     draw: ImageDraw.ImageDraw,
@@ -39,6 +53,7 @@ def draw_text_aligned(
     elif align == "right":
         x -= width
     
+    log_debug(f"绘制文本: '{text}' 在位置 ({x}, {y})，字体大小: {font.size}，对齐方式: {align}")
     draw.text((x, y), text, font=font, fill=fill)
 
 def draw_multiline_text(
@@ -84,9 +99,50 @@ def draw_multiline_text(
     
     # 绘制所有行
     _, line_height = get_text_dimensions("A", font)
+    log_debug(f"多行文本共 {len(lines)} 行，行高 {line_height}，行间距 {line_spacing}")
     for i, line in enumerate(lines):
         line_y = y + i * (line_height + line_spacing)
         draw_text_aligned(draw, (x, line_y), line, font, fill, align)
+
+def get_font(font_path, size, style=None):
+    """获取字体，处理样式并提供回退机制"""
+    try:
+        # 尝试从指定路径获取字体
+        if font_path and os.path.exists(font_path):
+            font = ImageFont.truetype(font_path, size=size)
+            log_debug(f"使用字体: {font_path}，大小: {size}")
+            return font
+    except Exception as e:
+        log_debug(f"加载指定字体出错: {e}")
+    
+    # 尝试使用系统字体
+    system_fonts = [
+        # Windows字体
+        "arial.ttf", "simsun.ttc", "simhei.ttf", "msyh.ttf",
+        # Linux字体
+        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+        # MacOS字体
+        "/System/Library/Fonts/PingFang.ttc"
+    ]
+    
+    for font_name in system_fonts:
+        try:
+            font = ImageFont.truetype(font_name, size=size)
+            log_debug(f"使用系统字体: {font_name}，大小: {size}")
+            return font
+        except Exception:
+            pass
+    
+    # 如果以上都失败，使用PIL默认字体
+    log_debug(f"使用PIL默认字体，大小: {size}")
+    default_font = ImageFont.load_default()
+    
+    # 为默认字体添加size属性
+    if not hasattr(default_font, 'size'):
+        default_font.size = size
+    
+    return default_font
 
 def generate_certificate(
     student_name: str,
@@ -109,32 +165,43 @@ def generate_certificate(
     Returns:
         str: 生成的证书文件路径
     """
+    log_debug("开始生成证书")
+    log_debug(f"输入参数: student_name={student_name}, ngo_name={ngo_name}, contents={contents}, date={date}")
+    
     # 使用默认模板或自定义模板
     template_path = template_path or config.DEFAULT_TEMPLATE
+    log_debug(f"使用模板: {template_path}")
     
     # 检查模板是否存在
     if not os.path.exists(template_path):
-        raise FileNotFoundError(f"模板文件不存在: {template_path}")
+        error_msg = f"模板文件不存在: {template_path}"
+        log_debug(error_msg)
+        raise FileNotFoundError(error_msg)
     
     # 加载模板
     template = Image.open(template_path)
+    log_debug(f"模板尺寸: {template.size}")
     draw = ImageDraw.Draw(template)
     
-    # 尝试加载默认字体，如果不存在则使用默认
-    try:
-        font_path = config.DEFAULT_FONT
-        if not os.path.exists(font_path):
-            # 如果配置的字体不存在，使用PIL默认字体
-            print(f"警告：字体文件不存在 {font_path}，将使用默认字体")
-            font_path = None
-    except Exception as e:
-        print(f"加载字体出错: {e}")
-        font_path = None
+    # 尝试获取字体
+    font_path = config.DEFAULT_FONT
+    log_debug(f"配置的默认字体: {font_path}")
+    
+    # 处理字体环境变量设置
+    env_font = os.environ.get('CERTIFICATE_FONT')
+    if env_font:
+        if os.path.exists(env_font):
+            font_path = env_font
+            log_debug(f"使用环境变量指定的字体: {font_path}")
+        else:
+            log_debug(f"环境变量指定的字体不存在: {env_font}")
     
     # 处理学生姓名 - 主标题
     student_config = config.CERTIFICATE_CONFIG["student_name"]
     student_font_size = student_config.get("font_size", 40)
-    student_font = ImageFont.truetype(font_path, size=student_font_size) if font_path else ImageFont.load_default()
+    log_debug(f"学生姓名字体大小: {student_font_size}")
+    student_font = get_font(font_path, student_font_size)
+    
     draw_text_aligned(
         draw,
         student_config["position"],
@@ -148,7 +215,9 @@ def generate_certificate(
     if "student_name_text" in config.CERTIFICATE_CONFIG:
         student_text_config = config.CERTIFICATE_CONFIG["student_name_text"]
         student_text_font_size = student_text_config.get("font_size", 40)
-        student_text_font = ImageFont.truetype(font_path, size=student_text_font_size) if font_path else ImageFont.load_default()
+        log_debug(f"学生姓名文本字体大小: {student_text_font_size}")
+        student_text_font = get_font(font_path, student_text_font_size)
+        
         draw_text_aligned(
             draw,
             student_text_config["position"],
@@ -161,7 +230,9 @@ def generate_certificate(
     # 处理NGO名称
     ngo_config = config.CERTIFICATE_CONFIG["ngo_name"]
     ngo_font_size = ngo_config.get("font_size", 30)
-    ngo_font = ImageFont.truetype(font_path, size=ngo_font_size) if font_path else ImageFont.load_default()
+    log_debug(f"NGO名称字体大小: {ngo_font_size}")
+    ngo_font = get_font(font_path, ngo_font_size)
+    
     draw_text_aligned(
         draw,
         ngo_config["position"],
@@ -174,7 +245,9 @@ def generate_certificate(
     # 处理证书内容
     contents_config = config.CERTIFICATE_CONFIG["contents"]
     contents_font_size = contents_config.get("font_size", 24)
-    contents_font = ImageFont.truetype(font_path, size=contents_font_size) if font_path else ImageFont.load_default()
+    log_debug(f"证书内容字体大小: {contents_font_size}")
+    contents_font = get_font(font_path, contents_font_size)
+    
     draw_multiline_text(
         draw,
         contents_config["position"],
@@ -189,7 +262,9 @@ def generate_certificate(
     # 处理日期
     date_config = config.CERTIFICATE_CONFIG["date"]
     date_font_size = date_config.get("font_size", 20)
-    date_font = ImageFont.truetype(font_path, size=date_font_size) if font_path else ImageFont.load_default()
+    log_debug(f"日期字体大小: {date_font_size}")
+    date_font = get_font(font_path, date_font_size)
+    
     draw_text_aligned(
         draw,
         date_config["position"],
@@ -205,12 +280,14 @@ def generate_certificate(
         try:
             # 尝试判断是否为URL
             if ngo_signature.startswith(('http://', 'https://')):
+                log_debug(f"下载签名图片: {ngo_signature}")
                 # 下载签名图片
                 signature_img = download_image(ngo_signature)
                 
                 # 调整签名尺寸
                 max_width, max_height = signature_config["max_size"]
                 width, height = signature_img.size
+                log_debug(f"原始签名尺寸: {width}x{height}，最大尺寸: {max_width}x{max_height}")
                 
                 # 保持宽高比
                 if width > max_width:
@@ -223,6 +300,7 @@ def generate_certificate(
                     height = max_height
                     width = int(width * ratio)
                 
+                log_debug(f"调整后签名尺寸: {width}x{height}")
                 signature_img = signature_img.resize((width, height), Image.LANCZOS)
                 
                 # 计算粘贴位置
@@ -232,12 +310,15 @@ def generate_certificate(
                 elif signature_config["align"] == "right":
                     sig_x -= width
                 
+                log_debug(f"粘贴签名位置: ({sig_x}, {sig_y})")
                 # 粘贴签名
                 template.paste(signature_img, (sig_x, sig_y), signature_img if signature_img.mode == 'RGBA' else None)
             else:
                 # 如果不是URL，假设是文本签名
                 signature_font_size = signature_config.get("font_size", 30)
-                signature_font = ImageFont.truetype(font_path, size=signature_font_size) if font_path else ImageFont.load_default()
+                log_debug(f"签名文本字体大小: {signature_font_size}")
+                signature_font = get_font(font_path, signature_font_size)
+                
                 draw_text_aligned(
                     draw,
                     signature_config["position"],
@@ -247,14 +328,16 @@ def generate_certificate(
                     signature_config["align"]
                 )
         except Exception as e:
-            print(f"处理签名时出错: {e}")
+            log_debug(f"处理签名时出错: {e}")
     
     # 生成唯一文件名
     unique_id = uuid.uuid4().hex
     output_filename = f"certificate_{unique_id}.pdf"
     output_path = os.path.join(config.TEMP_DIR, output_filename)
+    log_debug(f"生成证书文件: {output_path}")
     
     # 保存为PDF
     template.convert('RGB').save(output_path, "PDF", resolution=100.0)
+    log_debug(f"证书生成完成")
     
     return output_path 
