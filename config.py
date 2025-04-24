@@ -42,7 +42,7 @@ if DEFAULT_FONT is None:
 CERTIFICATE_CONFIG = {
     # 学生姓名 - 主标题 (x="1004", y="660")
     "student_name": {
-        "position": (1004, 590),
+        "position": (1004, 560),
         "font_size": 100,
         "color": (139, 69, 19),  # #8B4513 (棕色)
         "align": "center",
@@ -50,21 +50,21 @@ CERTIFICATE_CONFIG = {
     },
     # 学生姓名 - 文中使用 (x="1106", y="810")
     "student_name_text": {
-        "position": (1106, 775),
+        "position": (1106, 745),
         "font_size": 40,
         "color": (139, 69, 19),  # #8B4513 (棕色)
         "align": "center"
     },
     # NGO名称 (x="1337", y="1250")
     "ngo_name": {
-        "position": (1337, 1200),
+        "position": (1337, 1170),
         "font_size": 70,
         "color": (0, 0, 0),  # 黑色
         "align": "center"
     },
     # 证书内容 (x="979", y="915")
     "contents": {
-        "position": (979, 878),
+        "position": (979, 848),
         "font_size": 40,
         "color": (0, 0, 0),  # 黑色
         "align": "center",
@@ -73,7 +73,7 @@ CERTIFICATE_CONFIG = {
     },
     # 日期 (x="1337", y="1190")
     "date": {
-        "position": (1337, 1140),
+        "position": (1337, 1110),
         "font_size": 60,
         "color": (0, 0, 0),  # 黑色
         "align": "center"
