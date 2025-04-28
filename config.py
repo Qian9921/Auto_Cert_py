@@ -50,7 +50,7 @@ CERTIFICATE_CONFIG = {
     },
     # 学生姓名 - 文中使用 (x="1106", y="810")
     "student_name_text": {
-        "position": (1106, 760),
+        "position": (1106, 763),
         "font_size": 40,
         "color": (139, 69, 19),  # #8B4513 (棕色)
         "align": "center"
@@ -64,7 +64,7 @@ CERTIFICATE_CONFIG = {
     },
     # 证书内容 (x="979", y="915")
     "contents": {
-        "position": (979, 858),
+        "position": (979, 865),
         "font_size": 40,
         "color": (0, 0, 0),  # 黑色
         "align": "center",
@@ -80,7 +80,7 @@ CERTIFICATE_CONFIG = {
     },
     # NGO签名 (x="689", y="1200")
     "ngo_signature": {
-        "position": (689, 1155),
+        "position": (689, 1135),
         "font_size": 60,
         "color": (0, 0, 0),  # 黑色
         "align": "center",
