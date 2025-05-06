@@ -68,7 +68,7 @@ CERTIFICATE_CONFIG = {
         "font_size": 40,
         "color": (0, 0, 0),  # 黑色
         "align": "center",
-        "max_width": 800,  # 最大宽度，超过将自动换行
+        "max_width": 1400,  # 最大宽度，超过将自动换行
         "line_spacing": 15  # 行间距
     },
     # 日期 (x="1337", y="1190")
